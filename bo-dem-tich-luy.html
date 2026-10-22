@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bộ đếm tích lũy</title>
+<style>
+  :root {
+    --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; --muted: #94a3b8;
+    --accent: #22c55e; --accent2: #38bdf8; --border: #334155;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: 16px;
+  }
+  .card {
+    width: 100%; max-width: 520px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 20px; padding: 32px 24px; text-align: center;
+  }
+  .label { color: var(--muted); font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+  .amount {
+    font-size: clamp(40px, 11vw, 64px); font-weight: 700; margin: 12px 0 4px;
+    color: var(--accent); font-variant-numeric: tabular-nums;
+  }
+  .target { color: var(--muted); font-size: 15px; }
+  .bar { height: 12px; background: #0b1220; border-radius: 999px; margin: 24px 0 8px; overflow: hidden; border: 1px solid var(--border); }
+  .fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent2), var(--accent)); transition: width .3s linear; }
+  .pct { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 24px 0; }
+  .stat { background: #0b1220; border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+  .stat b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .stat span { font-size: 12px; color: var(--muted); }
+  .btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  button {
+    font: inherit; font-weight: 600; padding: 10px 22px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--border); background: transparent; color: var(--text);
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #052e16; }
+  button:hover { filter: brightness(1.1); }
+  .done { color: var(--accent2); font-weight: 600; margin-top: 12px; min-height: 22px; }
+  .countdown { margin: 20px 0 0; padding: 14px; background: #0b1220; border: 1px solid var(--border); border-radius: 14px; }
+  .countdown .big { font-size: clamp(30px, 9vw, 44px); font-weight: 700; color: var(--accent2); font-variant-numeric: tabular-nums; }
+  .countdown .sub { font-size: 13px; color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .setup { margin: 0 0 20px; padding: 14px; border: 1px dashed var(--border); border-radius: 14px; text-align: left; }
+  .setup h3 { margin: 0 0 4px; font-size: 14px; }
+  .setup p { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .row label { font-size: 13px; color: var(--muted); min-width: 92px; }
+  input[type=number] {
+    width: 64px; padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+    background: #0b1220; color: var(--text); font: inherit; text-align: center;
+  }
+  input.wide { width: 130px; }
+  .row small { color: var(--muted); }
+  input[type=time] {
+    padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+    background: #0b1220; color: var(--text); font: inherit; color-scheme: dark;
+  }
+  .nowbox { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="amount" id="amount">0,00</div>
+
+  <div class="countdown">
+    <div class="label">Đếm ngược còn lại</div>
+    <div class="big" id="cd">08:00:00</div>
+    <div class="sub">Bây giờ <span class="nowbox" id="now">--:--:--</span> · Kết thúc lúc <span class="nowbox" id="eta">--:--:--</span></div>
+    <div class="sub">Còn thiếu <span id="cdAmount">368.500,00</span></div>
+  </div>
+
+  <div class="bar"><div class="fill" id="fill"></div></div>
+  <div class="pct" id="pct">0,00%</div>
+
+  <div class="grid">
+    <div class="stat"><span>Thời gian đã chạy</span><b id="elapsed">00:00:00</b></div>
+    <div class="stat"><span>Còn lại</span><b id="remain">08:00:00</b></div>
+    <div class="stat"><span>Mỗi giây</span><b id="perSec"></b></div>
+    <div class="stat"><span>Mỗi phút</span><b id="perMin"></b></div>
+  </div>
+
+  <div class="setup">
+    <h3>Tính theo giờ trên đồng hồ</h3>
+    <p>Nhập giờ bắt đầu hoặc giờ kết thúc (cách nhau đúng 8 tiếng, ô còn lại tự tính). Bấm Áp dụng, bộ đếm sẽ nhảy tới đúng vị trí so với giờ hiện tại.</p>
+    <div class="row">
+      <label>Bắt đầu lúc</label>
+      <input type="time" step="1" id="inStart">
+    </div>
+    <div class="row">
+      <label>Kết thúc lúc</label>
+      <input type="time" step="1" id="inEnd">
+    </div>
+    <div class="btns"><button id="apply">Áp dụng</button></div>
+  </div>
+
+  <div class="btns">
+    <button class="primary" id="toggle">Bắt đầu</button>
+    <button id="reset">Đặt lại</button>
+  </div>
+  <div class="done" id="done"></div>
+</div>
+
+<script>
+  // ====== Cấu hình ======
+  const PER_MINUTE = 767.71;               // +767,71 mỗi phút
+  const PER_SECOND = PER_MINUTE / 60;      // ≈ 12,7952 mỗi giây
+  const TARGET = 368500;                   // mục tiêu sau 8 tiếng
+  const TOTAL_SECONDS = 8 * 3600;
+  const KEY = "bo-dem-tich-luy-v1";
+
+  const fmt = (n, d = 2) => n.toLocaleString("vi-VN", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const pad = n => String(n).padStart(2, "0");
+  const hms = s => `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s % 3600 / 60))}:${pad(Math.floor(s % 60))}`;
+
+  const $ = id => document.getElementById(id);
+  $("perSec").textContent = fmt(PER_SECOND, 4);
+  $("perMin").textContent = fmt(PER_MINUTE, 2);
+
+  // ====== Trạng thái (tính theo đồng hồ thật, không bị trôi khi tab ngủ) ======
+  let state = { elapsedBefore: 0, startedAt: null }; // giây đã tích lũy + thời điểm bắt đầu lượt chạy hiện tại
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) state = s; } catch (e) {}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+
+  const elapsedSeconds = () =>
+    state.elapsedBefore + (state.startedAt ? (Date.now() - state.startedAt) / 1000 : 0);
+
+  function render() {
+    // Cộng theo từng giây nguyên trôi qua
+    const secs = Math.min(Math.floor(elapsedSeconds()), TOTAL_SECONDS);
+    const amount = secs * PER_SECOND;
+    $("amount").textContent = fmt(amount);
+    const pct = Math.min(secs / TOTAL_SECONDS * 100, 100);
+    $("fill").style.width = pct + "%";
+    $("pct").textContent = fmt(pct) + "%";
+    $("elapsed").textContent = hms(secs);
+    $("remain").textContent = hms(TOTAL_SECONDS - secs);
+    $("cd").textContent = hms(TOTAL_SECONDS - secs);
+    $("now").textContent = new Date().toTimeString().slice(0, 8);
+    $("cdAmount").textContent = fmt(Math.max(TARGET - amount, 0));
+    if (state.startedAt && secs < TOTAL_SECONDS) {
+      const eta = new Date(Date.now() + (TOTAL_SECONDS - elapsedSeconds()) * 1000);
+      $("eta").textContent = eta.toLocaleTimeString("vi-VN", { hour12: false });
+    } else {
+      $("eta").textContent = secs >= TOTAL_SECONDS ? "đã xong" : "đang tạm dừng";
+      if (secs < TOTAL_SECONDS) $("eta").textContent = "tạm dừng";
+    }
+
+    if (secs >= TOTAL_SECONDS) {
+      state = { elapsedBefore: TOTAL_SECONDS, startedAt: null };
+      save();
+      $("done").textContent = "Hoàn thành";
+      $("amount").textContent = fmt(TARGET);
+      $("toggle").textContent = "Hoàn thành";
+      $("toggle").disabled = true;
+    } else {
+      $("toggle").textContent = state.startedAt ? "Tạm dừng" : (state.elapsedBefore > 0 ? "Tiếp tục" : "Bắt đầu");
+    }
+  }
+
+  $("toggle").onclick = () => {
+    if (state.startedAt) {
+      state = { elapsedBefore: elapsedSeconds(), startedAt: null };
+    } else {
+      state.startedAt = Date.now();
+    }
+    save(); render();
+  };
+
+  // Đặt điểm bắt đầu giữa chừng: theo thời gian đã qua, hoặc theo số đã tích
+  const toDate = v => {
+    const [h, m, s] = v.split(":").map(Number);
+    const d = new Date(); d.setHours(h, m || 0, s || 0, 0); return d;
+  };
+  const toStr = d => d.toTimeString().slice(0, 8);
+
+  // Hai ô giờ luôn lệch nhau đúng 8 tiếng
+  $("inStart").onchange = () => {
+    if ($("inStart").value) $("inEnd").value = toStr(new Date(toDate($("inStart").value).getTime() + TOTAL_SECONDS * 1000));
+  };
+  $("inEnd").onchange = () => {
+    if ($("inEnd").value) $("inStart").value = toStr(new Date(toDate($("inEnd").value).getTime() - TOTAL_SECONDS * 1000));
+  };
+  // Mặc định: bắt đầu từ bây giờ
+  $("inStart").value = toStr(new Date());
+  $("inStart").onchange();
+
+  $("apply").onclick = () => {
+    if (!$("inStart").value) return;
+    let start = toDate($("inStart").value).getTime();
+    if (start > Date.now()) start -= 24 * 3600 * 1000; // giờ bắt đầu hôm qua (ca qua đêm)
+    const secs = Math.max(0, Math.min((Date.now() - start) / 1000, TOTAL_SECONDS));
+    state = { elapsedBefore: secs, startedAt: Date.now() };
+    $("done").textContent = "";
+    $("toggle").disabled = false;
+    save(); render();
+  };
+
+  $("reset").onclick = () => {
+    state = { elapsedBefore: 0, startedAt: null };
+    $("done").textContent = "";
+    $("toggle").disabled = false;
+    save(); render();
+  };
+
+  setInterval(render, 250);
+  render();
+</script>
+</body>
+</html>
